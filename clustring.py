@@ -25,9 +25,9 @@ if missing:
 # create output dir
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# =====================
-# 1️⃣ 2D: LAT vs LON colored by CONFIRMED
-# =====================
+
+# LAT vs LON
+
 plt.figure()
 sc = plt.scatter(
     df["lon"],
@@ -42,9 +42,8 @@ plt.colorbar(sc, label="Confirmed")
 plt.savefig(f"{OUTPUT_DIR}/lat_lon_vs_confirmed.png", dpi=300)
 plt.close()
 
-# =====================
-# 2️⃣ 2D: CONFIRMED vs LEFT & RIGHT
-# =====================
+
+# ONFIRMED vs LEFT & RIGHT
 plt.figure()
 plt.scatter(df[CONFIRMED_COL], df[LEFT_COL], alpha=0.6, label="Left")
 plt.scatter(df[CONFIRMED_COL], df[RIGHT_COL], alpha=0.6, label="Right")
@@ -55,9 +54,7 @@ plt.legend()
 plt.savefig(f"{OUTPUT_DIR}/confirmed_vs_left_right.png", dpi=300)
 plt.close()
 
-# =====================
-# 3️⃣ OPTIONAL 3D: LAT, LON, CONFIRMED
-# =====================
+# LAT, LON, CONFIRMED
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
 
