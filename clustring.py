@@ -74,4 +74,4 @@ ax.set_title("3D: Lat-Lon-Confirmed")
 plt.savefig(f"{OUTPUT_DIR}/3d_lat_lon_confirmed.png", dpi=300)
 plt.close()
 
-print("✅ Plots saved successfully in:", OUTPUT_DIR)
+print("Plots saved successfully in:", OUTPUT_DIR)
