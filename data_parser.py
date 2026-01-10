@@ -79,7 +79,24 @@ def parse_vm2_file(input_path, output_path, confirmed_csv=None):
     df_raw = df_raw.rename(columns=rename_map)
 
     # SSort & cleanup
-    df_raw = df_raw.sort_values("timestamp").reset_index(drop=True)
+    timestamp_col = None
+
+    for c in df_raw.columns:
+        if c.lower() in ["timestamp", "time", "time_stamp", "timeStamp".lower()]:
+            timestamp_col = c
+            break
+
+    if timestamp_col is None:
+        raise ValueError(f"No timestamp column found. Columns are: {df_raw.columns.tolist()}")
+
+    df_raw["timestamp"] = pd.to_datetime(
+        df_raw[timestamp_col],
+        unit="s",
+        errors="coerce"
+    )
+
+    # Drop rows with invalid timestamps
+    df_raw = df_raw.dropna(subset=["timestamp"])
 
     # ensure lat/lon exist
     for col in ["lat", "lon"]:
