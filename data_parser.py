@@ -4,185 +4,120 @@ import os
 
 
 def parse_vm2_file(input_path, output_path, confirmed_csv=None):
-    # Read file
+
+    #Read all lines
     with open(input_path, "r") as f:
         lines = f.readlines()
 
-    # Find separator line
-    sep_idx = None
+    # Locate the sensor header row
+    sensor_header_idx = None
     for i, line in enumerate(lines):
-        if "=========================" in line:
-            sep_idx = i
+        if line.startswith("lat,lon,") and "timeStamp" in line:
+            sensor_header_idx = i
             break
 
-    if sep_idx is None:
-        raise ValueError("Sensor data separator not found")
+    if sensor_header_idx is None:
+        raise ValueError("Could not find sensor header row in the file.")
 
-    # Sensor data starts after separator
-    sensor_lines = lines[sep_idx + 1:]
+    #Extract the header and following lines as sensor data
+    header_line = lines[sensor_header_idx].strip()
+    data_lines = lines[sensor_header_idx + 1 :]
 
-    # Detect header or data format
-    header = None
-    data_start = None
-    delimiter = None
-
-    for i, line in enumerate(sensor_lines):
-        line = line.strip()
-        if not line or line.startswith("="):
-            continue
-
-        # Detect delimiter
-        if "," in line:
-            parts = line.split(",")
-            delimiter = ","
-        else:
-            parts = line.split()
-            delimiter = None  # whitespace
-
-        # Check if line looks like a header
-        non_numeric = sum(
-            not p.replace(".", "", 1).isdigit() for p in parts
-        )
-
-        if len(parts) > 3 and non_numeric > 0:
-            header = parts
-            data_start = i + 1
-        else:
-            header = None
-            data_start = i
-        break
-
-    if data_start is None:
-        raise ValueError("No sensor data found")
-
-    # Parse data rows
+    #Build a DataFrame from sensor data
+    cols = header_line.split(",")
     parsed_rows = []
-    for row in sensor_lines[data_start:]:
-        row = row.strip()
-        if not row:
+
+    for line in data_lines:
+        line = line.strip()
+        if not line:
             continue
+        parts = line.split(",")
 
-        if delimiter == ",":
-            values = row.split(",")
-        else:
-            values = row.split()
+        if len(parts) < len(cols):
+            parts += [None] * (len(cols) - len(parts))
+        elif len(parts) > len(cols):
+            parts = parts[:len(cols)]
+        parsed_rows.append(parts)
 
-        parsed_rows.append(values)
+    df = pd.DataFrame(parsed_rows, columns=cols)
 
-    if not parsed_rows:
-        raise ValueError("No data rows parsed")
-
-    # Generate header if missing
-    if header is None:
-        n_cols = max(len(r) for r in parsed_rows)
-        header = [f"col_{i}" for i in range(n_cols)]
-
-    # Normalize row lengths
-    normalized_rows = []
-    for r in parsed_rows:
-        if len(r) < len(header):
-            r = r + [np.nan] * (len(header) - len(r))
-        elif len(r) > len(header):
-            r = r[:len(header)]
-        normalized_rows.append(r)
-
-    # Create DataFrame
-    df_raw = pd.DataFrame(normalized_rows, columns=header)
-    df_raw.columns = df_raw.columns.str.strip()
-
-    # Detect timestamp column
-    timestamp_col = None
-    for c in df_raw.columns:
-        if c.lower() in ["timestamp", "time", "time_stamp", "col_0"]:
-            timestamp_col = c
-            break
-
-    if timestamp_col is None:
-        raise ValueError(f"No timestamp column found: {df_raw.columns.tolist()}")
-
-    # Convert timestamp
-    df_raw["timestamp"] = pd.to_datetime(
-        pd.to_numeric(df_raw[timestamp_col], errors="coerce"),
-        unit="s",
-        errors="coerce"
-    )
-
-    # Drop rows without valid timestamp
-    df_raw = df_raw.dropna(subset=["timestamp"])
-
-    # Convert common numeric columns if present
-    for col in ["lat", "lon", "obsDistanceLeft", "obsDistanceRight"]:
-        if col in df_raw.columns:
-            df_raw[col] = pd.to_numeric(df_raw[col], errors="coerce")
-
-    # Rename distance columns
-    df_raw = df_raw.rename(
-        columns={
-            "obsDistanceLeft": "left_dist",
-            "obsDistanceRight": "right_dist"
-        }
-    )
-
-    # Ensure lat/lon exist
-    for col in ["lat", "lon"]:
-        if col not in df_raw.columns:
-            df_raw[col] = np.nan
-
-    # Sort by timestamp
-    df_raw = df_raw.sort_values("timestamp").reset_index(drop=True)
-
-    # Derived features
-    if {"left_dist", "right_dist"}.issubset(df_raw.columns):
-        df_raw["min_dist"] = df_raw[["left_dist", "right_dist"]].min(axis=1)
-        df_raw["asymmetry"] = (df_raw["left_dist"] - df_raw["right_dist"]).abs()
-    else:
-        df_raw["min_dist"] = np.nan
-        df_raw["asymmetry"] = np.nan
-
-    df_raw["delta_min_dist"] = df_raw["min_dist"].diff().fillna(0)
-    df_raw["delta_recovery"] = (
-        df_raw["min_dist"].shift(-1) - df_raw["min_dist"]
-    ).fillna(0)
-
-    # Optional motion magnitude
-    motion_cols = [
-        c for c in df_raw.columns
-        if c.lower() in ["x", "y", "z", "acc", "a", "b", "c"]
+    # Convert numeric columns
+    numeric_cols = [
+        "lat", "lon",
+        "X", "Y", "Z",
+        "timeStamp",
+        "acc", "a", "b", "c",
+        "obsDistanceLeft1", "obsDistanceLeft2",
+        "obsDistanceRight1", "obsDistanceRight2"
     ]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    if motion_cols:
-        df_raw["acc_magnitude"] = np.sqrt(
-            np.sum(np.power(df_raw[motion_cols].fillna(0), 2), axis=1)
+    # Forward fill lat/lon where they are empty
+    df["lat"] = df["lat"].ffill()
+    df["lon"] = df["lon"].ffill()
+
+    # Compute combined left/right distances
+    # If both channels exist, take the minimum (closest object)
+    if "obsDistanceLeft1" in df.columns and "obsDistanceLeft2" in df.columns:
+        df["left_dist"] = df[["obsDistanceLeft1", "obsDistanceLeft2"]].min(axis=1)
+    else:
+        df["left_dist"] = df["obsDistanceLeft1"]
+
+    if "obsDistanceRight1" in df.columns and "obsDistanceRight2" in df.columns:
+        df["right_dist"] = df[["obsDistanceRight1", "obsDistanceRight2"]].min(axis=1)
+    else:
+        df["right_dist"] = df["obsDistanceRight1"]
+
+    # Convert timestamp in ms to proper datetime
+    # Your sample clearly uses ms since epoch
+    df["timestamp"] = pd.to_datetime(df["timeStamp"], unit="ms", errors="coerce")
+
+    #Keep rows with a valid timestamp
+    df = df.dropna(subset=["timestamp"]).reset_index(drop=True)
+
+    #Sort by timestamp
+    df = df.sort_values("timestamp").reset_index(drop=True)
+
+    # Derived features for ML
+    df["min_dist"] = df[["left_dist", "right_dist"]].min(axis=1)
+    df["asymmetry"] = (df["left_dist"] - df["right_dist"]).abs()
+    df["delta_min_dist"] = df["min_dist"].diff().fillna(0)
+    df["delta_recovery"] = df["min_dist"].shift(-1) - df["min_dist"]
+    df["delta_recovery"] = df["delta_recovery"].fillna(0)
+
+    # Optional motion intensity
+    if {"acc", "X", "Y", "Z"}.issubset(df.columns):
+        df["motion_mag"] = np.sqrt(
+            df["acc"].fillna(0) ** 2 +
+            df["X"].fillna(0) ** 2 +
+            df["Y"].fillna(0) ** 2 +
+            df["Z"].fillna(0) ** 2
         )
 
-    # Merge confirmed labels if provided
+    # Merge Confirmed labels (if provided)
     if confirmed_csv is not None:
-        df_confirmed = pd.read_csv(
-            confirmed_csv, parse_dates=["timestamp"]
-        )
-
+        df_confirmed = pd.read_csv(confirmed_csv, parse_dates=["timestamp"])
         df = pd.merge_asof(
-            df_raw.sort_values("timestamp"),
+            df.sort_values("timestamp"),
             df_confirmed.sort_values("timestamp"),
             on="timestamp",
             direction="nearest",
             tolerance=pd.Timedelta("1s")
         )
-
         df["Confirmed"] = df["Confirmed"].fillna(0).astype(int)
     else:
-        df = df_raw.copy()
         df["Confirmed"] = 0
 
     # Save output
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     df.to_csv(output_path, index=False)
 
-    print(f"Saved cleaned CSV to: {output_path}")
+    print(f"✔ Saved parsed CSV to: {output_path}")
 
-
-# Example usage
 parse_vm2_file(
     input_path="For_parsing1/VM2_3220027",
-    output_path="Parsed_file/ride123_clean.csv"
+    output_path="Parsed/ride3220027_clean.csv",
+    confirmed_csv=None
 )
