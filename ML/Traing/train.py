@@ -177,7 +177,7 @@ sns.barplot(x='Importance', y='Feature', data=feature_importance)
 plt.title('Feature Importance - XGBoost')
 plt.xlabel('Importance Score')
 plt.tight_layout()
-plt.savefig("outputs/feature_importance.png", dpi=300)
+plt.savefig("./Output/feature_importance.png", dpi=300)
 plt.close()
 
 # save model and metadata
