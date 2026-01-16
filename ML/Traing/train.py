@@ -227,6 +227,4 @@ if len(X_train) > 1000:
 
     print(f"\nCV Mean ROC-AUC: {np.mean(cv_scores):.4f} (+/- {np.std(cv_scores):.4f})")
 
-print("\n" + "=" * 50)
 print("TRAINING COMPLETED SUCCESSFULLY!")
-print("=" * 50)
