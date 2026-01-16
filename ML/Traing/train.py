@@ -113,8 +113,9 @@ best_params = study.best_params
 best_params.update({
     "objective": "binary:logistic",
     "random_state": 42,
-    "eval_metric": "auc",
-    "early_stopping_rounds": 50  # ✅ Add here
+    "eval_metric": "aucpr",
+    "early_stopping_rounds": 50,
+    "scale_pos_weight": 1534
 })
 
 model = xgb.XGBClassifier(**best_params)
