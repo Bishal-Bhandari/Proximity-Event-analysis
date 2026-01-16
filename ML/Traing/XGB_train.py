@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import joblib
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, f1_score
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, f1_score, average_precision_score
 import xgboost as xgb
 import optuna
 import matplotlib.pyplot as plt
@@ -86,7 +86,7 @@ def objective(trial):
         "objective": "binary:logistic",
         "random_state": 42,
         "eval_metric": "auc",
-        "early_stopping_rounds": 50  # ✅ Add here
+        "early_stopping_rounds": 50
     }
 
     model = xgb.XGBClassifier(**params)
@@ -97,8 +97,8 @@ def objective(trial):
         verbose=False
     )
 
-    y_pred_prob = model.predict_proba(X_val)
-    score = f1_score(y_val, y_pred_prob, pos_label=1)
+    y_pred_prob = model.predict_proba(X_val)[:, 1]
+    score = average_precision_score(y_val, y_pred_prob)
     return score
 
 
