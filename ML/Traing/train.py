@@ -129,9 +129,7 @@ model.fit(
 )
 
 # model evaluation
-print("\n" + "=" * 50)
 print("MODEL EVALUATION")
-print("=" * 50)
 
 # predictions
 y_val_pred = model.predict(X_val)
