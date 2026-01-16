@@ -2,19 +2,30 @@ import pandas as pd
 import numpy as np
 import joblib
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, f1_score, average_precision_score
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, average_precision_score, precision_recall_curve
 import xgboost as xgb
 import optuna
 import matplotlib.pyplot as plt
 import seaborn as sns
 from collections import Counter
 import warnings
+from pathlib import Path
 
 warnings.filterwarnings('ignore')
 
+# reproducibility
+np.random.seed(42)
+
 # load data
-train_file_path = "../Data/training.csv"
-save_trained_file = "../Model/xgb_overtake_model.joblib"
+DATA_DIR = Path("../Data")
+MODEL_DIR = Path("../Model")
+OUTPUT_DIR = Path("../Output")
+
+train_file_path = DATA_DIR / "training.csv"
+save_trained_file = MODEL_DIR / "xgb_overtake_model.joblib"
+
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 df = pd.read_csv(train_file_path)
 required_cols = ["lat", "lon", "Left", "Right", "Confirmed"]
@@ -43,16 +54,14 @@ if min(df["Confirmed"].value_counts()) < 2:
 # feature engineering
 df["left_minus_right"] = df["Left"] - df["Right"]
 df["left_plus_right"] = df["Left"] + df["Right"]
-df["left_div_right"] = df["Left"] / (df["Right"] + 1e-8)
-
-df["distance"] = np.sqrt(df["lat"] ** 2 + df["lon"] ** 2)  # Distance from origin
 df["left_right_ratio"] = df["Left"] / (df["Right"] + 1e-8)
+
 df["lat_lon_product"] = df["lat"] * df["lon"]
 
 FEATURES = [
     "lat", "lon", "Left", "Right",
-    "left_minus_right", "left_plus_right", "left_div_right",
-    "distance", "left_right_ratio", "lat_lon_product"
+    "left_minus_right", "left_plus_right",
+    "left_right_ratio", "lat_lon_product"
 ]
 TARGET = "Confirmed"
 
@@ -69,6 +78,9 @@ print(f"Validation set: {X_val.shape[0]} samples")
 print(f"Training class distribution: {Counter(y_train)}")
 print(f"Validation class distribution: {Counter(y_val)}")
 
+# Calculate the actual class imbalance ratio
+scale_pos_weight_value = (y_train == 0).sum() / (y_train == 1).sum()
+print(f"Class imbalance ratio for scale_pos_weight: {scale_pos_weight_value:.0f}")
 
 # parameter tuning
 def objective(trial):
@@ -82,10 +94,10 @@ def objective(trial):
         "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
         "reg_alpha": trial.suggest_float("reg_alpha", 0.0, 1.0),
         "reg_lambda": trial.suggest_float("reg_lambda", 0.0, 1.0),
-        "scale_pos_weight": trial.suggest_float("scale_pos_weight", 0.5, 3.0),
         "objective": "binary:logistic",
         "random_state": 42,
-        "eval_metric": "auc",
+        "eval_metric": "aucpr",
+        "scale_pos_weight": scale_pos_weight_value,
         "early_stopping_rounds": 50
     }
 
@@ -115,7 +127,7 @@ best_params.update({
     "random_state": 42,
     "eval_metric": "aucpr",
     "early_stopping_rounds": 50,
-    "scale_pos_weight": 1534
+    "scale_pos_weight": scale_pos_weight_value
 })
 
 model = xgb.XGBClassifier(**best_params)
@@ -130,8 +142,13 @@ model.fit(
 print("MODEL EVALUATION")
 
 # predictions
-y_val_pred = model.predict(X_val)
 y_val_prob = model.predict_proba(X_val)[:, 1]
+
+precision, recall, thresholds = precision_recall_curve(y_val, y_val_prob)
+f1 = 2 * precision * recall / (precision + recall + 1e-8)
+best_threshold = thresholds[np.argmax(f1)]
+
+y_val_pred = (y_val_prob >= best_threshold).astype(int)
 
 # classification report
 print("\nCLASSIFICATION REPORT")
@@ -151,7 +168,7 @@ plt.title('Confusion Matrix')
 plt.ylabel('True Label')
 plt.xlabel('Predicted Label')
 plt.tight_layout()
-plt.savefig("../Output/confusion_matrix.png", dpi=300)
+plt.savefig(OUTPUT_DIR / "confusion_matrix.png", dpi=300)
 plt.close()
 
 # ROC-AUC Score
@@ -171,7 +188,7 @@ sns.barplot(x='Importance', y='Feature', data=feature_importance)
 plt.title('Feature Importance - XGBoost')
 plt.xlabel('Importance Score')
 plt.tight_layout()
-plt.savefig("../Output/feature_importance.png", dpi=300)
+plt.savefig(OUTPUT_DIR / "feature_importance.png", dpi=300)
 plt.close()
 
 # save model and metadata
@@ -181,6 +198,7 @@ model_artifact = {
     'feature_importance': feature_importance,
     'best_params': best_params,
     'roc_auc': roc_auc,
+    'best_threshold': float(best_threshold),
     'data_shape': {
         'training_samples': len(X_train),
         'validation_samples': len(X_val),
@@ -202,9 +220,9 @@ if len(X_train) > 1000:
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     cv_scores = []
 
-    for fold, (train_idx, val_idx) in enumerate(cv.split(X, y), 1):
-        X_cv_train, X_cv_val = X.iloc[train_idx], X.iloc[val_idx]
-        y_cv_train, y_cv_val = y.iloc[train_idx], y.iloc[val_idx]
+    for fold, (train_idx, val_idx) in enumerate(cv.split(X_train, y_train), 1):
+        X_cv_train, X_cv_val = X_train.iloc[train_idx], X_train.iloc[val_idx]
+        y_cv_train, y_cv_val = y_train.iloc[train_idx], y_train.iloc[val_idx]
 
         fold_model = xgb.XGBClassifier(**best_params)
 
