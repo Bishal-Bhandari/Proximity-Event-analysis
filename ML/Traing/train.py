@@ -138,11 +138,11 @@ y_val_pred = model.predict(X_val)
 y_val_prob = model.predict_proba(X_val)[:, 1]
 
 # classification report
-print("\n=== CLASSIFICATION REPORT ===")
+print("\nCLASSIFICATION REPORT")
 print(classification_report(y_val, y_val_pred, target_names=['No Overtake', 'Overtake']))
 
 # matrix
-print("\n=== CONFUSION MATRIX ===")
+print("\nCONFUSION MATRIX")
 cm = confusion_matrix(y_val, y_val_pred)
 print(cm)
 
@@ -160,16 +160,14 @@ plt.close()
 
 # ROC-AUC Score
 roc_auc = roc_auc_score(y_val, y_val_prob)
-print(f"\n=== ROC-AUC SCORE ===")
 print(f"ROC-AUC: {roc_auc:.4f}")
 
-print("\n=== FEATURE IMPORTANCE ===")
 feature_importance = pd.DataFrame({
     'Feature': FEATURES,
     'Importance': model.feature_importances_
 }).sort_values('Importance', ascending=False)
 
-print(feature_importance)
+print(f"feature_importance:{feature_importance}")
 
 # Plot
 plt.figure(figsize=(10, 6))
@@ -203,9 +201,7 @@ print(f"\nModel saved to: {save_trained_file}")
 
 # cross validation
 if len(X_train) > 1000:
-    print("\n" + "=" * 50)
     print("CROSS-VALIDATION RESULTS")
-    print("=" * 50)
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     cv_scores = []
@@ -215,11 +211,11 @@ if len(X_train) > 1000:
         y_cv_train, y_cv_val = y.iloc[train_idx], y.iloc[val_idx]
 
         fold_model = xgb.XGBClassifier(**best_params)
+
         fold_model.fit(
             X_cv_train, y_cv_train,
             eval_set=[(X_cv_val, y_cv_val)],
-            verbose=False,
-            early_stopping_rounds=50
+            verbose=False
         )
 
         # Score
