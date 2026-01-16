@@ -2,10 +2,7 @@ import pandas as pd
 import numpy as np
 import joblib
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, f1_score
 import xgboost as xgb
 import optuna
 import matplotlib.pyplot as plt
@@ -100,8 +97,8 @@ def objective(trial):
         verbose=False
     )
 
-    y_pred_prob = model.predict_proba(X_val)[:, 1]
-    score = roc_auc_score(y_val, y_pred_prob)
+    y_pred_prob = model.predict_proba(X_val)
+    score = f1_score(y_val, y_pred_prob, pos_label=1)
     return score
 
 
