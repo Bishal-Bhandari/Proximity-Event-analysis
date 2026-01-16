@@ -17,7 +17,7 @@ warnings.filterwarnings('ignore')
 
 # load data
 train_file_path = "../Data/training.csv"
-save_trained_file = "./Models/xgb_overtake_model.joblib"
+save_trained_file = "../Models/xgb_overtake_model.joblib"
 
 df = pd.read_csv(train_file_path)
 required_cols = ["lat", "lon", "Left", "Right", "Confirmed"]
