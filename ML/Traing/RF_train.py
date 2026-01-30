@@ -90,7 +90,8 @@ def objective(trial):
         "class_weight": trial.suggest_categorical("class_weight",
                                                   ["balanced", "balanced_subsample", class_weight_dict]),
         "random_state": 42,
-        "n_jobs": -1  # Use all available CPU cores
+        # to use all available CPU cores
+        "n_jobs": -1
     }
 
     # If max_depth is None, remove it (use default)
