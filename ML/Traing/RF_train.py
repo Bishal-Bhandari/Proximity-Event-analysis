@@ -94,7 +94,7 @@ def objective(trial):
         "n_jobs": -1
     }
 
-    # If max_depth is None, remove it (use default)
+    # check max depth
     if params["max_depth"] is None:
         del params["max_depth"]
 
@@ -119,14 +119,14 @@ study.optimize(objective, n_trials=50, show_progress_bar=True)
 print("\nBest Params:", study.best_params)
 print(f"Best Average Precision Score: {study.best_value:.4f}")
 
-# Train final model with best parameters
+# Train final model
 best_params = study.best_params
 best_params.update({
     "random_state": 42,
     "n_jobs": -1
 })
 
-# Ensure class_weight is properly set
+# check for class_weight
 if "class_weight" not in best_params:
     best_params["class_weight"] = class_weight_dict
 
@@ -144,11 +144,11 @@ print("=" * 50)
 y_val_pred = model.predict(X_val)
 y_val_prob = model.predict_proba(X_val)[:, 1]
 
-# Classification Report
+# Classification report
 print("\nCLASSIFICATION REPORT")
 print(classification_report(y_val, y_val_pred, target_names=['No Overtake', 'Overtake']))
 
-# Confusion Matrix
+# confusion Matrix
 print("\nCONFUSION MATRIX")
 cm = confusion_matrix(y_val, y_val_pred)
 print(cm)
@@ -169,11 +169,11 @@ plt.close()
 roc_auc = roc_auc_score(y_val, y_val_prob)
 print(f"\nROC-AUC Score: {roc_auc:.4f}")
 
-# Average Precision Score (better for imbalance)
+# avg precision score
 avg_precision = average_precision_score(y_val, y_val_prob)
 print(f"Average Precision Score: {avg_precision:.4f}")
 
-# Plot Precision-Recall Curve
+# Plottting curve
 plt.figure(figsize=(8, 6))
 precision, recall, _ = precision_recall_curve(y_val, y_val_prob)
 plt.plot(recall, precision, marker='.', label=f'Random Forest (AP={avg_precision:.3f})')
