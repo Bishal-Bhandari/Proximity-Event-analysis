@@ -22,12 +22,12 @@ df = pd.read_csv(train_file_path)
 required_cols = ["lat", "lon", "Left", "Right", "Confirmed"]
 assert all(col in df.columns for col in required_cols), "Train CSV missing required columns!"
 
-# Convert to binary classification
+# to binary classification
 print("Initial target value distribution:")
 print(df["Confirmed"].value_counts())
 print(f"Unique values: {sorted(df['Confirmed'].unique())}")
 
-# Convert to binary: 0 = no overtake, 1 = overtake
+# to binary: 0 for no overtake 1 fro overtake
 df["Confirmed"] = (df["Confirmed"] > 0).astype(int)
 
 print("\nAfter converting to binary:")
