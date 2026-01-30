@@ -37,13 +37,13 @@ print(f"1 (Overtake): {(df['Confirmed'] == 1).sum()}")
 class_ratio = (df['Confirmed'] == 0).sum() / (df['Confirmed'] == 1).sum()
 print(f"Class ratio: {class_ratio:.2f}:1")
 
-# Calculate class weights for imbalance handling
+# calc class weights for imbalance handling
 classes = np.array([0, 1])
 class_weights = compute_class_weight('balanced', classes=classes, y=df["Confirmed"])
 class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
 print(f"Class weights: {class_weight_dict}")
 
-# Check if we have enough samples for both classes
+# to check if we have enough samples for both classes
 if df["Confirmed"].nunique() < 2:
     raise ValueError("Need at least 2 classes for binary classification!")
 if min(df["Confirmed"].value_counts()) < 2:
