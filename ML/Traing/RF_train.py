@@ -14,7 +14,7 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-# Load data
+# load data
 train_file_path = "../Data/training.csv"
 save_trained_file = "../Model/rf_overtake_model.joblib"
 
