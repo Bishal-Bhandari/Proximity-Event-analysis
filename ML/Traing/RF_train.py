@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from collections import Counter
 import warnings
+from sklearn.metrics import roc_curve
+
 
 warnings.filterwarnings('ignore')
 
@@ -20,34 +22,34 @@ save_trained_file = "../Model/rf_overtake_model.joblib"
 
 df = pd.read_csv(train_file_path)
 required_cols = ["lat", "lon", "Left", "Right", "Confirmed"]
-assert all(col in df.columns for col in required_cols), "Train CSV missing required columns!"
+assert all(col in df.columns for col in required_cols), "missing required columns!"
 
 # to binary classification
-print("Initial target value distribution:")
+print("first target value distribution:")
 print(df["Confirmed"].value_counts())
 print(f"Unique values: {sorted(df['Confirmed'].unique())}")
 
 # to binary: 0 for no overtake 1 fro overtake
 df["Confirmed"] = (df["Confirmed"] > 0).astype(int)
 
-print("\nAfter converting to binary:")
-print(f"Class distribution:\n{df['Confirmed'].value_counts()}")
-print(f"0 (No overtake): {(df['Confirmed'] == 0).sum()}")
-print(f"1 (Overtake): {(df['Confirmed'] == 1).sum()}")
+print("\nconverting to binary:")
+print(f"class distribution:\n{df['Confirmed'].value_counts()}")
+print(f"0 (no overtake): {(df['Confirmed'] == 0).sum()}")
+print(f"1 (overtake): {(df['Confirmed'] == 1).sum()}")
 class_ratio = (df['Confirmed'] == 0).sum() / (df['Confirmed'] == 1).sum()
-print(f"Class ratio: {class_ratio:.2f}:1")
+print(f"class ratio: {class_ratio:.2f}:1")
 
 # calc class weights for imbalance handling
 classes = np.array([0, 1])
 class_weights = compute_class_weight('balanced', classes=classes, y=df["Confirmed"])
 class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
-print(f"Class weights: {class_weight_dict}")
+print(f"class weights: {class_weight_dict}")
 
 # to check if we have enough samples for both classes
 if df["Confirmed"].nunique() < 2:
-    raise ValueError("Need at least 2 classes for binary classification!")
+    raise ValueError("need at least 2 classes for binary classification!")
 if min(df["Confirmed"].value_counts()) < 2:
-    print("Warning: One class has very few samples. Consider collecting more data or using different evaluation.")
+    print("warning: one class has very few samples")
 
 # Feature engineering
 df["left_minus_right"] = df["Left"] - df["Right"]
@@ -72,10 +74,10 @@ X_train, X_val, y_train, y_val = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-print(f"\nTraining set: {X_train.shape[0]} samples")
-print(f"Validation set: {X_val.shape[0]} samples")
-print(f"Training class distribution: {Counter(y_train)}")
-print(f"Validation class distribution: {Counter(y_val)}")
+print(f"\ntraining set: {X_train.shape[0]} samples")
+print(f"validation set: {X_val.shape[0]} samples")
+print(f"training class distribution: {Counter(y_train)}")
+print(f"validation class distribution: {Counter(y_val)}")
 
 
 # Parameter tuning for Random Forest
@@ -112,12 +114,12 @@ def objective(trial):
 
 
 # Run optimization
-print("\nStarting hyperparameter optimization...")
+print("\nfro parameter optimization")
 study = optuna.create_study(direction="maximize")
 study.optimize(objective, n_trials=50, show_progress_bar=True)
 
-print("\nBest Params:", study.best_params)
-print(f"Best Average Precision Score: {study.best_value:.4f}")
+print("\nParams:", study.best_params)
+print(f"precision score: {study.best_value:.4f}")
 
 # Train final model
 best_params = study.best_params
@@ -132,24 +134,22 @@ if "class_weight" not in best_params:
 
 model = RandomForestClassifier(**best_params)
 
-print("\nTraining final Random Forest model...")
+print("\ntraining final model...")
 model.fit(X_train, y_train)
 
 # Model evaluation
-print("\n" + "=" * 50)
-print("MODEL EVALUATION")
-print("=" * 50)
+print("model evaluation")
 
 # Predictions
 y_val_pred = model.predict(X_val)
 y_val_prob = model.predict_proba(X_val)[:, 1]
 
 # Classification report
-print("\nCLASSIFICATION REPORT")
+print("\nreportt")
 print(classification_report(y_val, y_val_pred, target_names=['No Overtake', 'Overtake']))
 
 # confusion Matrix
-print("\nCONFUSION MATRIX")
+print("\ncpnfusion matrix:")
 cm = confusion_matrix(y_val, y_val_pred)
 print(cm)
 
@@ -167,11 +167,11 @@ plt.close()
 
 # ROC-AUC Score
 roc_auc = roc_auc_score(y_val, y_val_prob)
-print(f"\nROC-AUC Score: {roc_auc:.4f}")
+print(f"\nROC-AUC score: {roc_auc:.4f}")
 
 # avg precision score
 avg_precision = average_precision_score(y_val, y_val_prob)
-print(f"Average Precision Score: {avg_precision:.4f}")
+print(f"avg precision score: {avg_precision:.4f}")
 
 # Plottting curve
 plt.figure(figsize=(8, 6))
@@ -186,13 +186,12 @@ plt.tight_layout()
 plt.savefig("../Output/rf_precision_recall_curve.png", dpi=300)
 plt.close()
 
-# Feature Importance
 feature_importance = pd.DataFrame({
     'Feature': FEATURES,
     'Importance': model.feature_importances_
 }).sort_values('Importance', ascending=False)
 
-print("\nFEATURE IMPORTANCE:")
+print("\nfeature imp:")
 print(feature_importance)
 
 # Plot feature importance
@@ -204,7 +203,7 @@ plt.tight_layout()
 plt.savefig("../Output/rf_feature_importance.png", dpi=300)
 plt.close()
 
-# Save model and metadata
+# Save model and other datas
 model_artifact = {
     'model': model,
     'features': FEATURES,
@@ -225,68 +224,56 @@ model_artifact = {
 }
 
 joblib.dump(model_artifact, save_trained_file)
-print(f"\nModel saved to: {save_trained_file}")
+print(f"\nmodel saved to: {save_trained_file}")
 
-# Cross-validation with best parameters
+# Cross validation with parameters
 if len(X) > 1000:
-    print("\n" + "=" * 50)
-    print("CROSS-VALIDATION RESULTS")
-    print("=" * 50)
+    print("cross validation with params:")
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     cv_scores_auc = []
     cv_scores_ap = []
 
     for fold, (train_idx, val_idx) in enumerate(cv.split(X, y), 1):
+        # new iteration
         X_cv_train, X_cv_val = X.iloc[train_idx], X.iloc[val_idx]
         y_cv_train, y_cv_val = y.iloc[train_idx], y.iloc[val_idx]
 
-        # Train a new model for this fold
         fold_model = RandomForestClassifier(**best_params)
         fold_model.fit(X_cv_train, y_cv_train)
 
-        # Get predictions
+        # get predictions
         y_cv_prob = fold_model.predict_proba(X_cv_val)[:, 1]
 
-        # Calculate scores
+        # calculate score
         fold_score_auc = roc_auc_score(y_cv_val, y_cv_prob)
         fold_score_ap = average_precision_score(y_cv_val, y_cv_prob)
 
         cv_scores_auc.append(fold_score_auc)
         cv_scores_ap.append(fold_score_ap)
 
-        print(f"Fold {fold}: ROC-AUC = {fold_score_auc:.4f}, Average Precision = {fold_score_ap:.4f}")
+        print(f"Fold {fold}: ROC-AUC = {fold_score_auc:.4f}, avg precision = {fold_score_ap:.4f}")
 
-    print(f"\nCV Mean ROC-AUC: {np.mean(cv_scores_auc):.4f} (+/- {np.std(cv_scores_auc):.4f})")
-    print(f"CV Mean Average Precision: {np.mean(cv_scores_ap):.4f} (+/- {np.std(cv_scores_ap):.4f})")
+    print(f"\nCV mean ROC-AUC: {np.mean(cv_scores_auc):.4f} (+/- {np.std(cv_scores_auc):.4f})")
+    print(f"CV avg precision: {np.mean(cv_scores_ap):.4f} (+/- {np.std(cv_scores_ap):.4f})")
 
-print("\n" + "=" * 50)
-print("RANDOM FOREST TRAINING COMPLETED SUCCESSFULLY!")
-print("=" * 50)
-
-# Additional analysis for threshold tuning
-print("\n" + "=" * 50)
-print("THRESHOLD ANALYSIS FOR IMBALANCED DATA")
-print("=" * 50)
-
-# Find optimal threshold using Youden's J statistic
-from sklearn.metrics import roc_curve
-
-fpr, tpr, thresholds = roc_curve(y_val, y_val_prob)
-youden_index = tpr - fpr
-optimal_idx = np.argmax(youden_index)
-optimal_threshold = thresholds[optimal_idx]
-
-print(f"Default threshold (0.5):")
-print(f"  Positive predictions: {(y_val_prob >= 0.5).sum()}")
-print(f"  True Positives: {((y_val_prob >= 0.5) & (y_val == 1)).sum()}")
-print(f"  False Positives: {((y_val_prob >= 0.5) & (y_val == 0)).sum()}")
-
-print(f"\nOptimal threshold ({optimal_threshold:.3f}) using Youden's J statistic:")
-y_val_pred_optimal = (y_val_prob >= optimal_threshold).astype(int)
-print(f"  Positive predictions: {(y_val_prob >= optimal_threshold).sum()}")
-print(f"  True Positives: {((y_val_prob >= optimal_threshold) & (y_val == 1)).sum()}")
-print(f"  False Positives: {((y_val_prob >= optimal_threshold) & (y_val == 0)).sum()}")
-
-print("\nClassification report with optimal threshold:")
-print(classification_report(y_val, y_val_pred_optimal, target_names=['No Overtake', 'Overtake']))
+print("COMPLETED!!!")
+#
+# fpr, tpr, thresholds = roc_curve(y_val, y_val_prob)
+# youden_index = tpr - fpr
+# optimal_idx = np.argmax(youden_index)
+# optimal_threshold = thresholds[optimal_idx]
+#
+# print(f"Default threshold (0.5):")
+# print(f"  Positive predictions: {(y_val_prob >= 0.5).sum()}")
+# print(f"  True Positives: {((y_val_prob >= 0.5) & (y_val == 1)).sum()}")
+# print(f"  False Positives: {((y_val_prob >= 0.5) & (y_val == 0)).sum()}")
+#
+# print(f"\nOptimal threshold ({optimal_threshold:.3f}) using Youden's J statistic:")
+# y_val_pred_optimal = (y_val_prob >= optimal_threshold).astype(int)
+# print(f"  Positive predictions: {(y_val_prob >= optimal_threshold).sum()}")
+# print(f"  True Positives: {((y_val_prob >= optimal_threshold) & (y_val == 1)).sum()}")
+# print(f"  False Positives: {((y_val_prob >= optimal_threshold) & (y_val == 0)).sum()}")
+#
+# print("\nClassification report with optimal threshold:")
+# print(classification_report(y_val, y_val_pred_optimal, target_names=['No Overtake', 'Overtake']))
